@@ -1,4 +1,4 @@
-import arcjet, { shield, detectBot, slidingWindow } from "@arcjet/node";
+import arcjet, { shield , detectBot , slidingWindow } from "@arcjet/node";
 import { ENV } from "./env.js";
 
 const port = 3000;
