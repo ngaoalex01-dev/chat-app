@@ -6,6 +6,7 @@
   authUser: null,
   isCheckingAuth: true,//loading state to check if user is authenticated when app loads
   isSigningUp: false,
+  isLoggingIn: false,
   isVerifyingEmail: false,
 
   checkAuth: async () => {
@@ -32,6 +33,33 @@
       toast.error(error.response.data.message);
     } finally {
       set({ isSigningUp: false });
+    }
+  },
+
+  login: async (data) => {
+    set({ isLoggingIn: true });
+    try {
+      const res = await axiosInstance.post("/auth/Login", data);
+      set({ authUser: res.data });
+
+      toast.success("LOGGED IN SUCCESSFULLY ");
+      // get().connectSocket();
+    } catch (error) {
+      toast.error(error.response.data.message);
+    } finally {
+      set({ isLoggingIn: false });
+    }
+  },
+
+  logout: async () => {
+    try {
+      await axiosInstance.post("/auth/logout");
+      set({ authUser: null });
+      toast.success("Logged out successfully");
+      get().disconnectSocket();
+    } catch (error) {
+      toast.error("Error logging out");
+      console.log("Logout error:", error);
     }
   },
 
