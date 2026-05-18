@@ -1,19 +1,27 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route , Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
 import ChatPage from './pages/ChatPage';
-import { useAuthStore } from './stores/useAuthStore.js';
+import { useAuthStore } from './store/useAuthStore.js';
+import { useEffect } from 'react';
+import PageLoader from './components/PageLoader';
 
+import { Toaster } from 'react-hot-toast';
+import EmailVerificationPage from './pages/EmailVerificationPage';
 import FloatingShape from './components/FloatingShape';
 
 
 function App () {
+  const { isCheckingAuth, checkAuth, authUser } = useAuthStore();
 
-  const { authUser, isLoggedIn, login } = useAuthStore();
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
-  console.log("authUser: ", authUser);
-  console.log("isLoggedIn: ", isLoggedIn);
-  
+  console.log(authUser);
+
+  if(isCheckingAuth) return <PageLoader />;
+
   return (
 
     <div className="min-h-screen bg-slate-900 relative flex items-center justify-center p-4 overflow-hidden">
@@ -26,10 +34,13 @@ function App () {
 
 
    <Routes>
-      <Route path="/" element={<LoginPage />} />
-      <Route path="/signup" element={<SignUpPage />} />
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={authUser ? <ChatPage /> : <Navigate to={"/login" }/>} />
+      <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to={"/"} />} />
+      <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to={"/"} />} />
+      <Route path="/verify-email" element={ <EmailVerificationPage /> } />
     </Routes>
+
+    <Toaster />
     </div>
   );
 }
