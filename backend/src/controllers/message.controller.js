@@ -1,6 +1,7 @@
 import cloudinary from '../lib/cloudinary.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
+import { getReceiverSocketId, io } from "../lib/socket.js";
 
 export const getAllContacts = async (req, res) => {
   try {
@@ -70,40 +71,16 @@ export const sendMessage = async (req, res) => {
 
       await newMessage.save();
 
+       const receiverSocketId = getReceiverSocketId(receiverId);
+       if (receiverSocketId) {
+         io.to(receiverSocketId).emit("newMessage", newMessage);
+       }
       res.status(201).json(newMessage);
   } catch (error) {
     console.log("Error in sendMessage controller:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
-// export const getChatPartners = async (req, res) => {
-//   try {
-//     const loggedInUserId = req.user._id;
-
-//     //find all messages where the looged i  user is either the sender or the reciever
-//     const messages = await Message.find({
-//       $or: [{ senderId: loggedInUserId }, { receiverId: loggedInUserId }],
-//     });
-
-//     const chatPartnerIds = [
-//       ...new Set(
-//         messages.map((msg) =>
-//         msg.senderId.toString() === loggedInUserId.toString()
-//           ? msg.receiverId.toString()
-//           : msg.senderId.toString()
-//         )
-//       ),
-//     ];
-
-//     const chatPartners = await User.find({ _id: { $in: chatPartnerIds } }).select("-password");
-
-//     res.status(200).json(chatPartners);
-//   } catch (error) {
-//     console.log("Error in getChatPartners controller:", error);
-//     res.status(500).json({ message: "Internal server error" });
-//   }
-// };
 
 export const getChatPartners = async (req, res) => {
   try {
