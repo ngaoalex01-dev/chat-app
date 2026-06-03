@@ -3,6 +3,8 @@ import useKeyboardSound from "../hooks/useKeyboardSound";
 import { useChatStore } from "../store/useChatStore";
 import toast from "react-hot-toast";
 import { ImageIcon, SendIcon, XIcon } from "lucide-react";
+import { useAuthStore } from "../store/useAuthStore";
+
 
 function MessageInput() {
   const { playRandomKeyStrokeSound } = useKeyboardSound();//destructuring and abstaraction of playRandomKeyStrokeSound function from useKeyboardSound hook
@@ -10,19 +12,30 @@ function MessageInput() {
   const [imagePreview, setImagePreview] = useState(null);
 
   const fileInputRef = useRef(null);//mutable ref to reset file input after sending or removing image
+  const typingTimeoutRef = useRef(null);//ref to store typing timeout id for debouncing typing events
 
-  const { sendMessage, isSoundEnabled } = useChatStore();//destructure sendMessage and isSoundEnabled from chat store
+  const { sendMessage, isSoundEnabled , selectedUser } = useChatStore();//destructure sendMessage and isSoundEnabled from chat store
+
+  const { socket } = useAuthStore();//destructure socket from auth store to emit typing events
+
 
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!text.trim() && !imagePreview) return;
     if (isSoundEnabled) playRandomKeyStrokeSound();
 
+
+    if (selectedUser && socket) {
+    socket.emit("stopTyping", {
+      receiverId: selectedUser._id,
+    });
+   }
+
     sendMessage({
       text: text.trim(),
       image: imagePreview,
     });
-    
+
     setText("");
     setImagePreview("");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -70,10 +83,25 @@ function MessageInput() {
         <input
           type="text"
           value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            isSoundEnabled && playRandomKeyStrokeSound();
-          }}
+         onChange={(e) => {
+         setText(e.target.value);
+
+         if (selectedUser && socket) {
+           socket.emit("typing", {
+             receiverId: selectedUser._id,
+           });
+
+           clearTimeout(typingTimeoutRef.current);
+
+           typingTimeoutRef.current = setTimeout(() => {
+             socket.emit("stopTyping", {
+               receiverId: selectedUser._id,
+             });
+           }, 1000);
+         }
+
+           isSoundEnabled && playRandomKeyStrokeSound();
+         }}
           className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-lg py-2 px-4"
           placeholder="Type your message..."
         />

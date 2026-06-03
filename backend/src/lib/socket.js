@@ -40,6 +40,26 @@ io.on("connection", (socket) => {
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });
+
+  socket.on("typing", ({ receiverId }) => {
+    const receiverSocketId = getReceiverSocketId(receiverId);
+
+    if(receiverSocketId) {
+      io.to(receiverSocketId).emit("userTyping", {
+        userId: socket.userId
+      });
+    }
+  });
+
+  socket.on("stopTyping", ({ receiverId }) => {
+    const receiverSocketId = getReceiverSocketId(receiverId);
+
+    if(receiverSocketId) {
+      io.to(receiverSocketId).emit("userStoppedTyping", {
+        userId: socket.userId
+      });
+    }
+  });
 });
 
 export { io, app, server };
