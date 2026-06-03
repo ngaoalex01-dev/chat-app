@@ -14,6 +14,28 @@
   isVerifyingEmail: false,
   socket: null,
   onlineUsers: [],
+  typingUsers: {},// stores who is currently typing
+
+
+  setUserTyping: (userId) => {
+    set((state) => ({
+      typingUsers: {
+        ...state.typingUsers,
+        [userId]: true
+      }
+    }))
+  },
+
+ removeTypingUser: (userId) =>
+  set((state) => {
+    const updated = { ...state.typingUsers };
+
+    delete updated[userId];
+
+    return {
+      typingUsers: updated,
+    };
+  }),
 
   checkAuth: async () => {
   try {
@@ -108,6 +130,14 @@
       //listen for online users event from server
       socket.on("getOnlineUsers", (userIds) => {
         set({ onlineUsers: userIds });
+      });
+
+      socket.on("userTyping", ({ userId }) => {
+        get().setUserTyping(userId);
+      });
+
+      socket.on("userStoppedTyping", ({ userId }) => {
+        get().removeTypingUser(userId);
       });
   },
 
