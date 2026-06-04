@@ -1,5 +1,5 @@
 import { useChatStore } from "../store/useChatStore";
-import { MessageSquare , User} from "lucide-react";
+import { ChatRegular, PersonRegular, PersonFilled , ChatFilled  } from "@fluentui/react-icons";
 
 function ActiveTabSwitch() {
   const { activeTab, setActiveTab } = useChatStore();
@@ -12,7 +12,13 @@ function ActiveTabSwitch() {
           activeTab === "chats" ? "bg-cyan-500/20 text-cyan-400" : "text-slate-400"
         }`}
       >
-        <MessageSquare className="size-5 mr-2" />
+        {activeTab === "chats" ? (
+          <ChatFilled className="size-5 mr-2" primaryFill="#22d3ee" />
+        ) : (
+          <ChatRegular className="size-5 mr-2" primaryFill="#94a3b8" />
+        )
+
+        }
         Chats
       </button>
 
@@ -22,7 +28,13 @@ function ActiveTabSwitch() {
           activeTab === "contacts" ? "bg-cyan-500/20 text-cyan-400" : "text-slate-400"
         }`}
       >
-        <User className="size-5 mr-2" />
+        { activeTab === "contacts" ? (
+          <PersonFilled className="size-5 mr-2" primaryFill="#22d3ee" />
+        ) : (
+            <PersonRegular className="size-5 mr-2"  primaryFill="#94a3b8"/>
+        )
+
+        }
         Contacts
       </button>
     </div>

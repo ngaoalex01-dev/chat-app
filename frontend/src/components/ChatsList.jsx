@@ -34,7 +34,7 @@ function ChatsList() {
               <h4 className="text-slate-200 font-medium truncate">{chat.user.fullName}</h4>
 
               {typingUsers?.[chat.user._id] && (
-                <span className=" text-xs text-cyan-400">
+                <span className=" text-sm text-white">
                   typing...
                 </span>
               )}
