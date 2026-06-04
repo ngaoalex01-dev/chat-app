@@ -18,7 +18,6 @@ function MessageInput() {
 
   const { socket } = useAuthStore();//destructure socket from auth store to emit typing events
 
-
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!text.trim() && !imagePreview) return;
@@ -59,7 +58,7 @@ function MessageInput() {
   };
 
   return (
-    <div className="p-4 border-t border-slate-700/50">
+    <div className="p-4 border-t border-slate-700/50 z-30">
       {imagePreview && (
         <div className="max-w-3xl mx-auto mb-3 flex items-center">
           <div className="relative">

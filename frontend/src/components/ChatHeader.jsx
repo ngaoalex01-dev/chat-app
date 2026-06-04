@@ -1,4 +1,4 @@
-import { XIcon } from "lucide-react";
+import { DismissRegular } from "@fluentui/react-icons";
 import { useChatStore } from "../store/useChatStore";
 import { useEffect } from "react";
 import { useAuthStore } from "../store/useAuthStore";
@@ -22,7 +22,7 @@ function ChatHeader() {
   return (
     <div
       className="flex justify-between items-center bg-slate-800/50 border-b
-   border-slate-700/50 max-h-[84px] px-6 flex-1"
+   border-slate-700/50 max-h-[84px] px-6 flex-1 z-20"
     >
       <div className="flex items-center space-x-3">
         <div className={`avatar ${isOnline ? "avatar-online" : "offline"}`}>
@@ -38,7 +38,7 @@ function ChatHeader() {
       </div>
 
       <button onClick={() => setSelectedUser(null)}>
-        <XIcon className="w-5 h-5 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer" />
+        <DismissRegular className="w-7 h-7 text-slate-400 hover:text-cyan-200 transition-colors cursor-pointer" />
       </button>
     </div>
   );
