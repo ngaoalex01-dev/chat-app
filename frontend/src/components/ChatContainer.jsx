@@ -7,6 +7,7 @@ import NoChatHistoryPlaceholder from "./NoChatHistoryPlaceholder";
 import MessageInput from "./MessageInput";
 import MessagesLoadingSkeleton from "./MessagesLoadingSkeleton";
 import ChatBackground from "./ChatBackground";
+import { AnimatePresence, motion } from "framer-motion";
 
 function ChatContainer() {
   const {
@@ -26,6 +27,9 @@ function ChatContainer() {
   const isSelectedUserTyping = selectedUser && typingUsers?.[selectedUser._id];
 
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [ isUserNearBottom, setIsUserNearBottom] = useState(true);
+
+  const showTypingPill = showScrollButton &&isSelectedUserTyping;
 
   const scrollToBottom = () => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -46,10 +50,11 @@ function ChatContainer() {
 
   // Auto scroll on load/new messages
   useEffect(() => {
-    if (messageEndRef.current) {
-      messageEndRef.current.scrollIntoView();
+    if (isUserNearBottom && messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({
+      });
     }
-  }, [messages]);
+  }, [messages, isSelectedUserTyping]);
 
   // Detect scroll position
   useEffect(() => {
@@ -62,7 +67,8 @@ function ChatContainer() {
         container.scrollTop -
         container.clientHeight;
 
-      setShowScrollButton(distanceFromBottom > 600);
+      setShowScrollButton(distanceFromBottom > 150);
+      setIsUserNearBottom(distanceFromBottom < 50);
     };
 
     container.addEventListener("scroll", handleScroll);
@@ -125,25 +131,31 @@ function ChatContainer() {
                 </div>
               </div>
             ))}
-            {isSelectedUserTyping && (
-      <div className="chat chat-start">
-        <div className="chat-bubble bg-slate-800 text-slate-200">
-          <div className="flex gap-1">
-            <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
-
-            <span
-              className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-              style={{ animationDelay: "150ms" }}
-            ></span>
-
-            <span
-              className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-              style={{ animationDelay: "300ms" }}
-            ></span>
-          </div>
-        </div>
-      </div>
-    )}
+            <AnimatePresence>
+             {isSelectedUserTyping && (
+               <motion.div
+                 className="chat chat-start"
+                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                 animate={{ opacity: 1, y: 0, scale: 1 }}
+                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                 transition={{ duration: 0.25 }}
+               >
+                 <div className="chat-bubble bg-slate-800 text-slate-200">
+                   <div className="flex gap-1">
+                     <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
+                     <span
+                       className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+                       style={{ animationDelay: "150ms" }}
+                     />
+                     <span
+                       className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+                       style={{ animationDelay: "300ms" }}
+                     />
+                   </div>
+                 </div>
+               </motion.div>
+             )}
+           </AnimatePresence>
 
 
             {/* scroll anchor */}
@@ -160,23 +172,40 @@ function ChatContainer() {
       {showScrollButton && (
         <button
           onClick={scrollToBottom}
-          className={`
+          className="
             fixed bottom-24 right-8 z-50
             flex items-center justify-center
-            h-12 w-12 rounded-full
+            rounded-full
             bg-cyan-600 text-white
-            shadow-lg shadow-cyan-500/20
-            hover:bg-cyan-700 hover:scale-110 active:scale-95
-            transition-all duration-300 ease-in-out
-            ${showScrollButton
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-4 pointer-events-none"
-            }
-          `}
+            shadow-lg shadow-black/20
+            hover:scale-105 active:scale-95
+            transition-all duration-300
+            px-4 py-3
+          "
         >
-          <ArrowDownRegular fontSize={22} />
-        </button>
-      )}
+         {isSelectedUserTyping ? (
+           <div className="flex items-center gap-2">
+             <div className="flex gap-1">
+               <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
+
+               <span
+                 className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+                 style={{ animationDelay: "150ms" }}
+               />
+
+               <span
+                 className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+                 style={{ animationDelay: "300ms" }}
+               />
+             </div>
+
+             <ArrowDownRegular fontSize={16} />
+           </div>
+         ) : (
+           <ArrowDownRegular fontSize={22} />
+         )}
+       </button>
+     )}
 
       {/* INPUT */}
       <MessageInput />
