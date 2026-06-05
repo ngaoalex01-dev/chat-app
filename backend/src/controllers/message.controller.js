@@ -27,7 +27,9 @@ export const getMessagesByUserId = async (req, res) => {
         { senderId: myId, receiverId: userToChatId },
         { senderId: userToChatId, receiverId: myId },
       ],
-    });
+    })
+      .populate("replyTo", "text image senderId")
+      .sort({ createdAt: 1 });
 
     res.status(200).json(messages);
   } catch (error) {
@@ -40,13 +42,13 @@ export const getMessagesByUserId = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { text, image } = req.body;
+    const { text, image, audio, replyTo } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
 
-    if (!text && !image) {
-      return res.status(400).json({ message: "Text or image is required." });
+    if (!text && !image && !audio) {
+      return res.status(400).json({ message: "Text, image, or audio is required." });
     }
     if (senderId.equals(receiverId)) {
       return res.status(400).json({ message: "Cannot send messages to yourself." });
@@ -58,18 +60,30 @@ export const sendMessage = async (req, res) => {
 
     let imageUrl;
     if (image) {
-      //upload the image to cloudinary and get the URL
       const uploadResponse = await cloudinary.uploader.upload(image);
       imageUrl = uploadResponse.secure_url;
     }
+
+    let audioUrl;
+    if (audio) {
+      const uploadResponse = await cloudinary.uploader.upload(audio, {
+        resource_type: "video",
+        folder: "voice_notes",
+      });
+      audioUrl = uploadResponse.secure_url;
+    }
+
       const newMessage = new Message({
         senderId,
         receiverId,
         text,
         image: imageUrl,
+        audio: audioUrl,
+        replyTo: replyTo || null,
       });
 
       await newMessage.save();
+      await newMessage.populate("replyTo", "text image senderId");
 
        const receiverSocketId = getReceiverSocketId(receiverId);
        if (receiverSocketId) {
@@ -84,74 +98,139 @@ export const sendMessage = async (req, res) => {
 
 export const getChatPartners = async (req, res) => {
   try {
-
     const loggedInUserId = req.user._id;
 
     const chatPartners = await Message.aggregate([
-
-      // Find messages involving logged-in user
       {
         $match: {
           $or: [
             { senderId: loggedInUserId },
-            { receiverId: loggedInUserId }
-          ]
-        }
+            { receiverId: loggedInUserId },
+          ],
+        },
       },
-
-      // Determine the other user
       {
-        $project: {
+        $addFields: {
           chatPartner: {
             $cond: {
               if: { $eq: ["$senderId", loggedInUserId] },
               then: "$receiverId",
-              else: "$senderId"
-            }
-          }
-        }
+              else: "$senderId",
+            },
+          },
+        },
       },
-
-      // Remove duplicates
+      { $sort: { createdAt: -1 } },
       {
         $group: {
-          _id: "$chatPartner"
-        }
+          _id: "$chatPartner",
+          lastMessage: { $first: "$$ROOT" },
+        },
       },
-
-      // Join with users collection
       {
         $lookup: {
           from: "users",
           localField: "_id",
           foreignField: "_id",
-          as: "user"
-        }
+          as: "user",
+        },
       },
-
-      // Convert user array into object
-      {
-        $unwind: "$user"
-      },
-
-      // Remove password field
+      { $unwind: "$user" },
       {
         $project: {
-          "user.password": 0
-        }
-      }
-
+          _id: 1,
+          lastMessage: {
+            _id: "$lastMessage._id",
+            text: "$lastMessage.text",
+            image: "$lastMessage.image",
+            audio: "$lastMessage.audio",
+            senderId: "$lastMessage.senderId",
+            createdAt: "$lastMessage.createdAt",
+          },
+          user: {
+            _id: "$user._id",
+            email: "$user.email",
+            fullName: "$user.fullName",
+            profilePic: "$user.profilePic",
+            isVerified: "$user.isVerified",
+          },
+        },
+      },
+      { $sort: { "lastMessage.createdAt": -1 } },
     ]);
 
     res.status(200).json(chatPartners);
-
   } catch (error) {
+    console.log("Error in getChatPartners:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
-    console.log(error);
+export const updateMessage = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    const { text } = req.body;
+    const userId = req.user._id;
 
-    res.status(500).json({
-      message: "Internal server error"
-    });
+    if (!text?.trim()) {
+      return res.status(400).json({ message: "Text is required." });
+    }
 
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found." });
+    }
+
+    if (!message.senderId.equals(userId)) {
+      return res.status(403).json({ message: "You can only edit your own messages." });
+    }
+
+    message.text = text.trim();
+    message.isEdited = true;
+    await message.save();
+    await message.populate("replyTo", "text image senderId audio");
+
+    const partnerId = message.receiverId;
+    const partnerSocketId = getReceiverSocketId(partnerId.toString());
+    if (partnerSocketId) {
+      io.to(partnerSocketId).emit("messageUpdated", message);
+    }
+
+    res.status(200).json(message);
+  } catch (error) {
+    console.log("Error in updateMessage controller:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteMessage = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    const userId = req.user._id;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found." });
+    }
+
+    if (!message.senderId.equals(userId)) {
+      return res.status(403).json({ message: "You can only delete your own messages." });
+    }
+
+    await Message.findByIdAndDelete(messageId);
+
+    const partnerId = message.senderId.equals(userId)
+      ? message.receiverId
+      : message.senderId;
+
+    const partnerSocketId = getReceiverSocketId(partnerId.toString());
+    if (partnerSocketId) {
+      io.to(partnerSocketId).emit("messageDeleted", { messageId });
+    }
+
+    res.status(200).json({ messageId });
+  } catch (error) {
+    console.log("Error in deleteMessage controller:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
