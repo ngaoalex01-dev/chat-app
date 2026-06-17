@@ -119,29 +119,39 @@
 
   connectSocket: () => {
     const { authUser } = get();
-    if (!authUser || get().socket?.connected) return;
+    if (!authUser) return;
 
-    const socket = io(BASE_URL,
-      { withCredentials: true });// important to send cookies for authentication
+    let socket = get().socket;
 
-      socket.connect();
-      set({ socket });
+    if (socket) {
+      if (!socket.connected) socket.connect();
+      return;
+    }
 
-      //listen for online users event from server
-      socket.on("getOnlineUsers", (userIds) => {
-        set({ onlineUsers: userIds });
-      });
+    socket = io(BASE_URL, { withCredentials: true, autoConnect: false });
 
-      socket.on("userTyping", ({ userId }) => {
-        get().setUserTyping(userId);
-      });
+    socket.on("getOnlineUsers", (userIds) => {
+      set({ onlineUsers: userIds.map(String) });
+    });
 
-      socket.on("userStoppedTyping", ({ userId }) => {
-        get().removeTypingUser(userId);
-      });
+    socket.on("userTyping", ({ userId }) => {
+      get().setUserTyping(String(userId));
+    });
+
+    socket.on("userStoppedTyping", ({ userId }) => {
+      get().removeTypingUser(String(userId));
+    });
+
+    socket.connect();
+    set({ socket });
   },
 
   disconnectSocket: () => {
-    if (get().socket?.connected) get().socket.disconnect();
+    const socket = get().socket;
+    if (socket) {
+      socket.disconnect();
+      socket.removeAllListeners();
+    }
+    set({ socket: null, onlineUsers: [] });
   },
  }));

@@ -6,6 +6,8 @@ import {
   sendMessage,
   updateMessage,
   deleteMessage,
+  pinMessage,
+  unpinMessage,
 } from "../controllers/message.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 import { arcjetProtection } from "../middleware/arcjet.middleware.js";
@@ -18,6 +20,8 @@ router.use(arcjetProtection, protectRoute);
 
 router.get("/contacts", getAllContacts);
 router.get("/chats", getChatPartners);
+router.put("/pin/:messageId", pinMessage);
+router.delete("/pin/:partnerId", unpinMessage);
 router.put("/:id", updateMessage);
 router.delete("/:id", deleteMessage);
 router.get("/:id", getMessagesByUserId);

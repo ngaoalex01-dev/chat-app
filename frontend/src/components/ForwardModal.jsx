@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { X } from "lucide-react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { isUserOnline } from "../lib/onlineStatus";
 
 function ForwardModal() {
   const {
@@ -43,7 +44,7 @@ function ForwardModal() {
             >
               <div
                 className={`avatar ${
-                  onlineUsers.includes(contact._id) ? "avatar-online" : "avatar-offline"
+                  isUserOnline(contact._id, onlineUsers) ? "avatar-online" : "avatar-offline"
                 }`}
               >
                 <div className="size-10 rounded-full">

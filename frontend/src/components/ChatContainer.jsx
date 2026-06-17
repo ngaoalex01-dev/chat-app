@@ -1,29 +1,25 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { ArrowDownRegular } from "@fluentui/react-icons";
-import { Pin } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
-import { useChatStore, getMessagePreview } from "../store/useChatStore";
+import { useChatStore } from "../store/useChatStore";
 import ChatHeader from "./ChatHeader";
 import NoChatHistoryPlaceholder from "./NoChatHistoryPlaceholder";
 import MessageInput from "./MessageInput";
 import MessagesLoadingSkeleton from "./MessagesLoadingSkeleton";
 import ChatBackground from "./ChatBackground";
 import MessageBubble from "./MessageBubble";
+import PinnedMessageBar from "./PinnedMessageBar";
 import { AnimatePresence, motion } from "framer-motion";
 
-/*  local date formatter  */
 function formatMessageGroupDate(dateString) {
   const date = new Date(dateString);
   const now = new Date();
 
-  const isToday = date.toDateString() === now.toDateString();
+  if (date.toDateString() === now.toDateString()) return "Today";
 
   const yesterday = new Date();
   yesterday.setDate(now.getDate() - 1);
-  const isYesterday = date.toDateString() === yesterday.toDateString();
-
-  if (isToday) return "Today";
-  if (isYesterday) return "Yesterday";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
 
   return date.toLocaleDateString(undefined, {
     month: "short",
@@ -43,8 +39,8 @@ function ChatContainer({ isMobile }) {
     searchText,
     searchDate,
     replyingTo,
-    getPinnedMessage,
-    pinnedMessages,
+    pinnedMessage,
+    unpinMessage,
   } = useChatStore();
 
   const { authUser, typingUsers } = useAuthStore();
@@ -54,9 +50,6 @@ function ChatContainer({ isMobile }) {
 
   const isSelectedUserTyping =
     selectedUser && typingUsers?.[selectedUser._id];
-
-  const pinnedMessage = getPinnedMessage();
-  const partnerId = selectedUser ? String(selectedUser._id) : "";
 
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isUserNearBottom, setIsUserNearBottom] = useState(true);
@@ -73,9 +66,7 @@ function ChatContainer({ isMobile }) {
 
     if (searchDate) {
       result = result.filter((msg) => {
-        const msgDate = new Date(msg.createdAt)
-          .toISOString()
-          .split("T")[0];
+        const msgDate = new Date(msg.createdAt).toISOString().split("T")[0];
         return msgDate === searchDate;
       });
     }
@@ -88,14 +79,10 @@ function ChatContainer({ isMobile }) {
 
     filteredMessages.forEach((msg) => {
       const label = formatMessageGroupDate(msg.createdAt);
-
       const lastGroup = groups[groups.length - 1];
 
       if (!lastGroup || lastGroup.label !== label) {
-        groups.push({
-          label,
-          messages: [msg],
-        });
+        groups.push({ label, messages: [msg] });
       } else {
         lastGroup.messages.push(msg);
       }
@@ -106,9 +93,14 @@ function ChatContainer({ isMobile }) {
 
   const scrollToBottom = () => {
     const container = chatContainerRef.current;
-    if (container) {
-      container.scrollTop = container.scrollHeight;
-    }
+    if (container) container.scrollTop = container.scrollHeight;
+  };
+
+  const scrollToPinnedMessage = () => {
+    if (!pinnedMessage) return;
+    document
+      .getElementById(`msg-${pinnedMessage._id}`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
   };
 
   const getNewDividerIndex = () => {
@@ -116,13 +108,15 @@ function ChatContainer({ isMobile }) {
 
     return filteredMessages.findIndex(
       (msg) =>
-        String(msg.senderId?._id || msg.senderId) !==
-          String(authUser._id) &&
+        String(msg.senderId?._id || msg.senderId) !== String(authUser._id) &&
         new Date(msg.createdAt) > new Date(dividerReadAt)
     );
   };
 
   const dividerIndex = getNewDividerIndex();
+
+  const isOwnMessage = (msg) =>
+    String(msg.senderId?._id || msg.senderId) === String(authUser._id);
 
   useEffect(() => {
     if (searchText || searchDate) {
@@ -145,11 +139,7 @@ function ChatContainer({ isMobile }) {
     const container = chatContainerRef.current;
     const latestMessage = messages[messages.length - 1];
 
-    const isMyMessage =
-      String(latestMessage.senderId?._id || latestMessage.senderId) ===
-      String(authUser._id);
-
-    if (isMyMessage) {
+    if (isOwnMessage(latestMessage)) {
       container.scrollTop = container.scrollHeight;
       return;
     }
@@ -157,7 +147,7 @@ function ChatContainer({ isMobile }) {
     if (isUserNearBottom) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, authUser._id, isUserNearBottom]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -165,9 +155,7 @@ function ChatContainer({ isMobile }) {
 
     const handleScroll = () => {
       const distanceFromBottom =
-        container.scrollHeight -
-        container.scrollTop -
-        container.clientHeight;
+        container.scrollHeight - container.scrollTop - container.clientHeight;
 
       setShowScrollButton(distanceFromBottom > 150);
       setIsUserNearBottom(distanceFromBottom < 50);
@@ -178,22 +166,42 @@ function ChatContainer({ isMobile }) {
   }, []);
 
   useEffect(() => {
-  if (!chatContainerRef.current) return;
-  if (!isUserNearBottom) return;
+    if (!chatContainerRef.current || !isUserNearBottom) return;
 
-  requestAnimationFrame(() => {
-    if (isUserNearBottom) {
-      chatContainerRef.current.scrollTop =
-        chatContainerRef.current.scrollHeight;
-    }
-  });
-}, [isSelectedUserTyping]);
+    requestAnimationFrame(() => {
+      if (isUserNearBottom && chatContainerRef.current) {
+        chatContainerRef.current.scrollTop =
+          chatContainerRef.current.scrollHeight;
+      }
+    });
+  }, [isSelectedUserTyping, isUserNearBottom]);
 
   const scrollButtonBottom = replyingTo ? "bottom-44" : "bottom-24";
+
+  const renderMessage = (msg) => (
+    <MessageBubble
+      message={msg}
+      showNewDivider={
+        filteredMessages.findIndex((m) => m._id === msg._id) === dividerIndex &&
+        newMessagesCount > 0
+      }
+      newCount={newMessagesCount}
+      isHighlighted={!!(searchText || searchDate)}
+      isPinned={pinnedMessage?._id === msg._id}
+    />
+  );
 
   return (
     <div className="relative flex flex-col h-full">
       <ChatHeader isMobile={isMobile} />
+
+      {pinnedMessage && !searchText && !searchDate && (
+        <PinnedMessageBar
+          message={pinnedMessage}
+          onScrollTo={scrollToPinnedMessage}
+          onUnpin={unpinMessage}
+        />
+      )}
 
       <div className="absolute inset-0 z-0">
         <ChatBackground />
@@ -201,47 +209,42 @@ function ChatContainer({ isMobile }) {
 
       <div
         ref={chatContainerRef}
-        className="relative z-10 flex-1 px-6 overflow-y-auto py-8 "
+        className="relative z-10 flex-1 px-6 overflow-y-auto py-8"
       >
         {messages.length > 0 && !isMessagesLoading ? (
           <div className="max-w-3xl mx-auto space-y-6">
-
             {groupedMessages.map((group, groupIndex) => (
               <div key={groupIndex} className="space-y-4">
-
-                {/* Sticky Date Divider */}
                 <div className="flex justify-center sticky top-2 z-20">
                   <div className="bg-slate-800/70 backdrop-blur-md px-3 py-1 rounded-full text-xs text-slate-300 border border-slate-700/40 shadow">
                     {group.label}
                   </div>
                 </div>
 
-                {/* Messages with ANIMATION ONLY ADDED */}
-                {group.messages.map((msg) => (
-<motion.div
-  key={msg._id}
-  initial={{ opacity: 0, y: 10, scale: 0.98 }}
-  whileInView={{ opacity: 1, y: 0, scale: 1 }}
-  viewport={{  amount: 0.3, once: false  }}
-  transition={{ duration: 0.25, ease: "easeOut" }}
->
-    <MessageBubble
-      message={msg}
-      showNewDivider={
-        filteredMessages.findIndex((m) => m._id === msg._id) ===
-          dividerIndex && newMessagesCount > 0
-      }
-      newCount={newMessagesCount}
-      isHighlighted={!!(searchText || searchDate)}
-      isPinned={pinnedMessages[partnerId] === msg._id}
-    />
-  </motion.div>
-))}
+                {group.messages.map((msg) => {
+                  const stableKey = msg.clientId || msg._id;
+                  const own = isOwnMessage(msg);
 
+                  if (own) {
+                    return <div key={stableKey}>{renderMessage(msg)}</div>;
+                  }
+
+                  return (
+                    <motion.div
+                      key={stableKey}
+                      initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                      viewport={{ once: true, amount: 0.2 }}
+                      transition={{ duration: 0.22, ease: "easeOut" }}
+                    >
+                      {renderMessage(msg)}
+                    </motion.div>
+                  );
+                })}
               </div>
             ))}
 
-             <AnimatePresence>
+            <AnimatePresence>
               {isSelectedUserTyping && (
                 <motion.div
                   className="chat chat-start"
@@ -276,7 +279,7 @@ function ChatContainer({ isMobile }) {
         )}
       </div>
 
-     {showScrollButton && (
+      {showScrollButton && (
         <button
           onClick={scrollToBottom}
           className={`absolute ${scrollButtonBottom} right-4 md:right-8 z-40 flex items-center justify-center rounded-full bg-cyan-600 text-white shadow-lg shadow-black/20 hover:scale-105 active:scale-95 transition-all duration-300 px-4 py-3`}

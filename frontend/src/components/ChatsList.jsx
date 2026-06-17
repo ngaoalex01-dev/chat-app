@@ -5,6 +5,7 @@ import NoChatsFound from "./NoChatsFound";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatLastMessageTime } from "../lib/formatTime";
 import { getMessagePreview } from "../store/useChatStore";
+import { isUserOnline } from "../lib/onlineStatus";
 
 function ChatsList() {
   const { getMyChatPartners, chats, isUsersLoading, setSelectedUser, unreadCounts } =
@@ -34,7 +35,7 @@ function ChatsList() {
             <div className="flex items-center gap-3">
               <div
                 className={`avatar shrink-0 ${
-                  onlineUsers.includes(chat.user._id) ? "avatar-online" : "avatar-offline"
+                  isUserOnline(chat.user._id, onlineUsers) ? "avatar-online" : "avatar-offline"
                 }`}
               >
                 <div className="size-12 rounded-full">

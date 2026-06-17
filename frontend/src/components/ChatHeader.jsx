@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useIsMobile } from "../hooks/useIsMobile";
 import ChatSearch from "./ChatSearch";
+import { isUserOnline } from "../lib/onlineStatus";
 
 function ChatHeader({ isMobile: isMobileProp }) {
   const {
@@ -22,6 +23,7 @@ function ChatHeader({ isMobile: isMobileProp }) {
     messages,
     openForwardModal,
     isSearchOpen,
+    openPartnerProfile,
   } = useChatStore();
 
   const { onlineUsers } = useAuthStore();
@@ -29,7 +31,7 @@ function ChatHeader({ isMobile: isMobileProp }) {
   const isMobileHook = useIsMobile();
   const isMobile = isMobileProp ?? isMobileHook;
 
-  const isOnline = onlineUsers.includes(selectedUser._id);
+  const isOnline = isUserOnline(selectedUser._id, onlineUsers);
 
   const [isHovered, setIsHovered] = useState(false);
 
@@ -114,32 +116,36 @@ function ChatHeader({ isMobile: isMobileProp }) {
             </button>
           )}
 
-          {/* Avatar with Online Ring */}
-          <div
-            className={`rounded-full p-[3px] transition-all duration-300 ${
-              isOnline
-                ? "bg-gradient-to-r from-green-400 to-green-600 shadow-[0_0_15px_rgba(34,197,94,0.8)]"
-                : "bg-slate-700"
-            }`}
+          <button
+            type="button"
+            onClick={() => openPartnerProfile(selectedUser)}
+            className="flex items-center space-x-5 shrink-0 hover:opacity-90 transition-opacity text-left"
           >
-            <div className="w-12 h-12 rounded-full overflow-hidden">
-              <img
-                src={selectedUser.profilePic || "/avatar.png"}
-                alt={selectedUser.fullName}
-                className="w-full h-full object-cover"
-              />
+            <div
+              className={`rounded-full p-[3px] transition-all duration-300 ${
+                isOnline
+                  ? "bg-gradient-to-r from-purple-400 to-purple-600 shadow-[0_0_15px_rgba(168,85,247,0.6)]"
+                  : "bg-slate-700"
+              }`}
+            >
+              <div className="w-12 h-12 rounded-full overflow-hidden">
+                <img
+                  src={selectedUser.profilePic || "/avatar.png"}
+                  alt={selectedUser.fullName}
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <h3 className="text-slate-200 font-medium">
-              {selectedUser.fullName}
-            </h3>
-
-            <p className="text-slate-400 text-sm">
-              {isOnline ? "Online" : "Offline"}
-            </p>
-          </div>
+            <div>
+              <h3 className="text-slate-200 font-medium">
+                {selectedUser.fullName}
+              </h3>
+              <p className="text-slate-400 text-sm">
+                {isOnline ? "Online" : "Offline"}
+              </p>
+            </div>
+          </button>
         </div>
       )}
 

@@ -9,6 +9,7 @@ import ContactList from "../components/ContactList";
 import ChatContainer from "../components/ChatContainer";
 import NoConversationPlaceholder from "../components/NoConversationPlaceholder";
 import ForwardModal from "../components/ForwardModal";
+import ProfileOverlay from "../components/ProfileOverlay";
 
 function ChatSidebar() {
   const { activeTab } = useChatStore();
@@ -84,11 +85,11 @@ function ChatPage() {
     <>
       <div className="md:hidden fixed inset-0 bg-slate-900 overflow-hidden">
        <div
-  className="flex h-full w-[200%]"
-  style={{
-    transform: selectedUser ? "translateX(-50%)" : "translateX(0)",
-    transition: "transform 300ms ease-in-out",
-  }}
+       className="flex h-full w-[200%]"
+       style={{
+         transform: selectedUser ? "translateX(-50%)" : "translateX(0)",
+         transition: "transform 300ms ease-in-out",
+       }}
 >
           <div className="w-1/2 h-full flex flex-col bg-slate-800">
             <ChatSidebar />
@@ -118,6 +119,7 @@ function ChatPage() {
       </div>
 
       <ForwardModal />
+      <ProfileOverlay />
     </>
   );
 }
