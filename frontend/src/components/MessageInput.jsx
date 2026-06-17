@@ -131,7 +131,7 @@ function MessageInput() {
   const canSend = text.trim() || imagePreview || audioPreview;
 
   return (
-    <div className="p-4 border-t border-slate-700/50 z-30 bg-slate-900/80">
+    <div className="p-2 md:p-4 pb-3 md:pb-4 pt-2 z-30">
       {replyingTo && (
         <div className="max-w-3xl mx-auto mb-3 pr-14">
           <div className="flex items-center justify-between bg-slate-800/80 rounded-lg px-4 py-2 border-l-4 border-cyan-500">
@@ -210,7 +210,10 @@ function MessageInput() {
         </div>
       )}
 
-      <form onSubmit={handleSendMessage} className="max-w-3xl mx-auto flex space-x-2">
+      <form
+        onSubmit={handleSendMessage}
+        className="w-full max-w-3xl mx-auto flex items-center gap-1.5 md:gap-2 px-1 md:px-0"
+      >
         <input
           type="text"
           value={text}
@@ -227,7 +230,7 @@ function MessageInput() {
 
             isSoundEnabled && playRandomKeyStrokeSound();
           }}
-          className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-lg py-2 px-4"
+          className="flex-1 min-w-0 bg-slate-800/80 backdrop-blur-md border border-slate-700/30 rounded-2xl py-2.5 md:py-3 px-3 md:px-4 text-sm md:text-base shadow-lg shadow-black/10"
           placeholder="Type your message..."
         />
 
@@ -242,8 +245,8 @@ function MessageInput() {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className={`bg-slate-800/50 text-slate-400 hover:text-slate-200 rounded-lg px-3 transition-colors ${
-            imagePreview ? "text-cyan-500" : ""
+          className={`shrink-0 bg-slate-800/80 backdrop-blur-md border border-slate-700/30 rounded-2xl p-2.5 md:px-3 shadow-lg shadow-black/10 transition-all ${
+            imagePreview ? "text-cyan-500" : "text-slate-400 hover:text-slate-200"
           }`}
         >
           <ImageIcon className="w-5 h-5" />
@@ -253,7 +256,7 @@ function MessageInput() {
           type="button"
           onClick={isRecording ? stopRecording : startRecording}
           disabled={!!audioPreview}
-          className={`bg-slate-800/50 rounded-lg px-3 transition-colors ${
+          className={`shrink-0 bg-slate-800/80 backdrop-blur-md border border-slate-700/30 rounded-2xl p-2.5 md:px-3 shadow-lg shadow-black/10 transition-all ${
             isRecording
               ? "text-red-400 animate-pulse"
               : audioPreview
@@ -267,7 +270,7 @@ function MessageInput() {
         <button
           type="submit"
           disabled={!canSend}
-          className="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-lg px-4 py-2 font-medium hover:from-cyan-600 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="shrink-0 bg-gradient-to-r from-cyan-500 to-cyan-600 text-white rounded-2xl p-2.5 md:px-4 md:py-3 shadow-lg shadow-cyan-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <SendIcon className="w-5 h-5" />
         </button>

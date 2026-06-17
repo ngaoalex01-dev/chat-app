@@ -11,14 +11,33 @@ import ChatBackground from "./ChatBackground";
 import MessageBubble from "./MessageBubble";
 import { AnimatePresence, motion } from "framer-motion";
 
+/*  local date formatter  */
+function formatMessageGroupDate(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+
+  const isToday = date.toDateString() === now.toDateString();
+
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  if (isToday) return "Today";
+  if (isYesterday) return "Yesterday";
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function ChatContainer({ isMobile }) {
   const {
     selectedUser,
     getMessagesByUserId,
     messages,
     isMessagesLoading,
-    subscribeToMessages,
-    unsubscribeFromMessages,
     newMessagesCount,
     dividerReadAt,
     searchText,
@@ -33,7 +52,9 @@ function ChatContainer({ isMobile }) {
   const messageEndRef = useRef(null);
   const chatContainerRef = useRef(null);
 
-  const isSelectedUserTyping = selectedUser && typingUsers?.[selectedUser._id];
+  const isSelectedUserTyping =
+    selectedUser && typingUsers?.[selectedUser._id];
+
   const pinnedMessage = getPinnedMessage();
   const partnerId = selectedUser ? String(selectedUser._id) : "";
 
@@ -45,18 +66,43 @@ function ChatContainer({ isMobile }) {
 
     if (searchText.trim()) {
       const query = searchText.toLowerCase();
-      result = result.filter((msg) => msg.text?.toLowerCase().includes(query));
+      result = result.filter((msg) =>
+        msg.text?.toLowerCase().includes(query)
+      );
     }
 
     if (searchDate) {
       result = result.filter((msg) => {
-        const msgDate = new Date(msg.createdAt).toISOString().split("T")[0];
+        const msgDate = new Date(msg.createdAt)
+          .toISOString()
+          .split("T")[0];
         return msgDate === searchDate;
       });
     }
 
     return result;
   }, [messages, searchText, searchDate]);
+
+  const groupedMessages = useMemo(() => {
+    const groups = [];
+
+    filteredMessages.forEach((msg) => {
+      const label = formatMessageGroupDate(msg.createdAt);
+
+      const lastGroup = groups[groups.length - 1];
+
+      if (!lastGroup || lastGroup.label !== label) {
+        groups.push({
+          label,
+          messages: [msg],
+        });
+      } else {
+        lastGroup.messages.push(msg);
+      }
+    });
+
+    return groups;
+  }, [filteredMessages]);
 
   const scrollToBottom = () => {
     const container = chatContainerRef.current;
@@ -70,7 +116,8 @@ function ChatContainer({ isMobile }) {
 
     return filteredMessages.findIndex(
       (msg) =>
-        String(msg.senderId?._id || msg.senderId) !== String(authUser._id) &&
+        String(msg.senderId?._id || msg.senderId) !==
+          String(authUser._id) &&
         new Date(msg.createdAt) > new Date(dividerReadAt)
     );
   };
@@ -81,29 +128,36 @@ function ChatContainer({ isMobile }) {
     if (searchText || searchDate) {
       const first = filteredMessages[0];
       if (first) {
-        document.getElementById(`msg-${first._id}`)?.scrollIntoView({ block: "center" });
+        document
+          .getElementById(`msg-${first._id}`)
+          ?.scrollIntoView({ block: "center" });
       }
     }
   }, [searchText, searchDate, filteredMessages]);
 
   useEffect(() => {
     getMessagesByUserId(selectedUser._id);
-    subscribeToMessages();
-
-    return () => unsubscribeFromMessages();
-  }, [
-    selectedUser,
-    getMessagesByUserId,
-    subscribeToMessages,
-    unsubscribeFromMessages,
-  ]);
+  }, [selectedUser, getMessagesByUserId]);
 
   useEffect(() => {
-    if (isUserNearBottom && chatContainerRef.current) {
-      const container = chatContainerRef.current;
+    if (!chatContainerRef.current || messages.length === 0) return;
+
+    const container = chatContainerRef.current;
+    const latestMessage = messages[messages.length - 1];
+
+    const isMyMessage =
+      String(latestMessage.senderId?._id || latestMessage.senderId) ===
+      String(authUser._id);
+
+    if (isMyMessage) {
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+
+    if (isUserNearBottom) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages, isSelectedUserTyping, isUserNearBottom]);
+  }, [messages]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -111,7 +165,9 @@ function ChatContainer({ isMobile }) {
 
     const handleScroll = () => {
       const distanceFromBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight;
+        container.scrollHeight -
+        container.scrollTop -
+        container.clientHeight;
 
       setShowScrollButton(distanceFromBottom > 150);
       setIsUserNearBottom(distanceFromBottom < 50);
@@ -121,30 +177,23 @@ function ChatContainer({ isMobile }) {
     return () => container.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+  if (!chatContainerRef.current) return;
+  if (!isUserNearBottom) return;
+
+  requestAnimationFrame(() => {
+    if (isUserNearBottom) {
+      chatContainerRef.current.scrollTop =
+        chatContainerRef.current.scrollHeight;
+    }
+  });
+}, [isSelectedUserTyping]);
+
   const scrollButtonBottom = replyingTo ? "bottom-44" : "bottom-24";
 
   return (
     <div className="relative flex flex-col h-full">
       <ChatHeader isMobile={isMobile} />
-
-      {pinnedMessage && !searchText && !searchDate && (
-        <div
-          className="relative z-20 mx-4 mt-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg cursor-pointer hover:bg-cyan-500/20 transition-colors"
-          onClick={() =>
-            document
-              .getElementById(`msg-${pinnedMessage._id}`)
-              ?.scrollIntoView({ block: "center", behavior: "smooth" })
-          }
-        >
-          <div className="flex items-center gap-2 text-cyan-400 text-xs font-medium mb-1">
-            <Pin className="w-3 h-3 fill-current" />
-            Pinned message
-          </div>
-          <p className="text-sm text-slate-300 truncate">
-            {getMessagePreview(pinnedMessage)}
-          </p>
-        </div>
-      )}
 
       <div className="absolute inset-0 z-0">
         <ChatBackground />
@@ -152,26 +201,47 @@ function ChatContainer({ isMobile }) {
 
       <div
         ref={chatContainerRef}
-        className="relative z-10 flex-1 px-6 overflow-y-auto py-8"
+        className="relative z-10 flex-1 px-6 overflow-y-auto py-8 "
       >
-        {(searchText || searchDate) && filteredMessages.length === 0 && messages.length > 0 && (
-          <p className="text-center text-slate-400 text-sm py-8">No messages found</p>
-        )}
-
         {messages.length > 0 && !isMessagesLoading ? (
           <div className="max-w-3xl mx-auto space-y-6">
-            {filteredMessages.map((msg, index) => (
-              <MessageBubble
-                key={msg._id}
-                message={msg}
-                showNewDivider={index === dividerIndex && newMessagesCount > 0}
-                newCount={newMessagesCount}
-                isHighlighted={!!(searchText || searchDate)}
-                isPinned={pinnedMessages[partnerId] === msg._id}
-              />
+
+            {groupedMessages.map((group, groupIndex) => (
+              <div key={groupIndex} className="space-y-4">
+
+                {/* Sticky Date Divider */}
+                <div className="flex justify-center sticky top-2 z-20">
+                  <div className="bg-slate-800/70 backdrop-blur-md px-3 py-1 rounded-full text-xs text-slate-300 border border-slate-700/40 shadow">
+                    {group.label}
+                  </div>
+                </div>
+
+                {/* Messages with ANIMATION ONLY ADDED */}
+                {group.messages.map((msg) => (
+<motion.div
+  key={msg._id}
+  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+  whileInView={{ opacity: 1, y: 0, scale: 1 }}
+  viewport={{  amount: 0.3, once: false  }}
+  transition={{ duration: 0.25, ease: "easeOut" }}
+>
+    <MessageBubble
+      message={msg}
+      showNewDivider={
+        filteredMessages.findIndex((m) => m._id === msg._id) ===
+          dividerIndex && newMessagesCount > 0
+      }
+      newCount={newMessagesCount}
+      isHighlighted={!!(searchText || searchDate)}
+      isPinned={pinnedMessages[partnerId] === msg._id}
+    />
+  </motion.div>
+))}
+
+              </div>
             ))}
 
-            <AnimatePresence>
+             <AnimatePresence>
               {isSelectedUserTyping && (
                 <motion.div
                   className="chat chat-start"
@@ -206,7 +276,7 @@ function ChatContainer({ isMobile }) {
         )}
       </div>
 
-      {showScrollButton && (
+     {showScrollButton && (
         <button
           onClick={scrollToBottom}
           className={`absolute ${scrollButtonBottom} right-4 md:right-8 z-40 flex items-center justify-center rounded-full bg-cyan-600 text-white shadow-lg shadow-black/20 hover:scale-105 active:scale-95 transition-all duration-300 px-4 py-3`}
