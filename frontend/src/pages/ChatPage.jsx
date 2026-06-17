@@ -28,77 +28,77 @@ function ChatPage() {
   const { selectedUser, setSelectedUser, subscribeToMessages, unsubscribeFromMessages } =
     useChatStore();
 
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const touchStart = useRef({ x: 0, y: 0 });
-  const isSwipingBack = useRef(false);
+  // const [swipeOffset, setSwipeOffset] = useState(0);
+  // const touchStart = useRef({ x: 0, y: 0 });
+  // const isSwipingBack = useRef(false);
 
   useEffect(() => {
     subscribeToMessages();
     return () => unsubscribeFromMessages();
   }, [subscribeToMessages, unsubscribeFromMessages]);
 
-  const handleBackTouchStart = (e) => {
-    if (!selectedUser) return;
-    const touch = e.touches[0];
-    touchStart.current = { x: touch.clientX, y: touch.clientY, fromEdge: touch.clientX < 40 };
-    isSwipingBack.current = true;
-  };
+  // const handleBackTouchStart = (e) => {
+  //   if (!selectedUser) return;
+  //   const touch = e.touches[0];
+  //   touchStart.current = { x: touch.clientX, y: touch.clientY, fromEdge: touch.clientX < 40 };
+  //   isSwipingBack.current = true;
+  // };
 
-  const handleBackTouchMove = (e) => {
-    if (!isSwipingBack.current || !selectedUser) return;
+  // const handleBackTouchMove = (e) => {
+  //   if (!isSwipingBack.current || !selectedUser) return;
 
-    const touch = e.touches[0];
-    const diffY = Math.abs(touch.clientY - touchStart.current.y);
+  //   const touch = e.touches[0];
+  //   const diffY = Math.abs(touch.clientY - touchStart.current.y);
 
-    const dragX = touchStart.current.fromEdge
-      ? touch.clientX - touchStart.current.x
-      : touchStart.current.x - touch.clientX;
+  //   const dragX = touchStart.current.fromEdge
+  //     ? touch.clientX - touchStart.current.x
+  //     : touchStart.current.x - touch.clientX;
 
-    if (diffY > Math.abs(dragX) && diffY > 25) {
-      isSwipingBack.current = false;
-      setSwipeOffset(0);
-      return;
-    }
+  //   if (diffY > Math.abs(dragX) && diffY > 25) {
+  //     isSwipingBack.current = false;
+  //     setSwipeOffset(0);
+  //     return;
+  //   }
 
-    if (dragX > 0 && diffY < 50) {
-      setSwipeOffset(Math.min(dragX, window.innerWidth * 0.45));
-    }
-  };
+  //   if (dragX > 0 && diffY < 50) {
+  //     setSwipeOffset(Math.min(dragX, window.innerWidth * 0.45));
+  //   }
+  // };
 
-  const handleBackTouchEnd = () => {
-    if (!isSwipingBack.current) return;
+  // const handleBackTouchEnd = () => {
+  //   if (!isSwipingBack.current) return;
 
-    if (swipeOffset > 80) {
-      setSelectedUser(null);
-    }
+  //   if (swipeOffset > 80) {
+  //     setSelectedUser(null);
+  //   }
 
-    setSwipeOffset(0);
-    isSwipingBack.current = false;
-  };
+  //   setSwipeOffset(0);
+  //   isSwipingBack.current = false;
+  // };
 
-  const mobileTransform = selectedUser
-    ? `translateX(calc(-50% + ${swipeOffset}px))`
-    : "translateX(0)";
+  // const mobileTransform = selectedUser
+  //   ? `translateX(calc(-50% + ${swipeOffset}px))`
+  //   : "translateX(0)";
 
   return (
     <>
       <div className="md:hidden fixed inset-0 bg-slate-900 overflow-hidden">
-        <div
-          className="flex h-full w-[200%]"
-          style={{
-            transform: mobileTransform,
-            transition: swipeOffset ? "none" : "transform 300ms ease-in-out",
-          }}
-        >
+       <div
+  className="flex h-full w-[200%]"
+  style={{
+    transform: selectedUser ? "translateX(-50%)" : "translateX(0)",
+    transition: "transform 300ms ease-in-out",
+  }}
+>
           <div className="w-1/2 h-full flex flex-col bg-slate-800">
             <ChatSidebar />
           </div>
 
           <div
             className="w-1/2 h-full flex flex-col bg-slate-900"
-            onTouchStart={handleBackTouchStart}
-            onTouchMove={handleBackTouchMove}
-            onTouchEnd={handleBackTouchEnd}
+            // onTouchStart={handleBackTouchStart}
+            // onTouchMove={handleBackTouchMove}
+            // onTouchEnd={handleBackTouchEnd}
           >
             {selectedUser && <ChatContainer isMobile />}
           </div>
