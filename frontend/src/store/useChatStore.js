@@ -6,7 +6,7 @@ import { useAuthStore } from "./useAuthStore";
 const LAST_READ_KEY = "chatLastReadAt";
 const PINNED_KEY = "chatPinnedMessages";
 
-const loadLastReadAt = () => {
+const loadLastReadAt = () => {// look into the local storage and get the last read at timestamps for each chat partner, if it fails return an empty object
   try {
     return JSON.parse(localStorage.getItem(LAST_READ_KEY)) || {};
   } catch {
@@ -14,7 +14,7 @@ const loadLastReadAt = () => {
   }
 };
 
-const saveLastReadAt = (lastReadAt) => {
+const saveLastReadAt = (lastReadAt) => {// store the updated timestamps fro each chat partner in the local storage
   localStorage.setItem(LAST_READ_KEY, JSON.stringify(lastReadAt));
 };
 
@@ -37,8 +37,8 @@ const getPartnerId = (id) => String(id?._id || id);
 
 const getMessagePreview = (msg) => {
   if (msg.text) return msg.text;
-  if (msg.image) return "📷 Photo";
-  if (msg.audio) return "🎤 Voice note";
+  if (msg.image) return " Photo";
+  if (msg.audio) return " Voice note";
   return "";
 };
 
@@ -65,6 +65,7 @@ export const useChatStore = create((set, get) => ({
   isSearchOpen: false,
   searchText: "",
   searchDate: "",
+  isDeletingMessages: false,
 
   toggleSound: () => {
     localStorage.setItem("isSoundEnabled", !get().isSoundEnabled);
@@ -123,8 +124,8 @@ export const useChatStore = create((set, get) => ({
 
     const { lastReadAt, unreadCounts } = get();
     const userId = getPartnerId(selectedUser._id);
-    const count = unreadCounts[userId] || 0;
-    const previousReadAt = lastReadAt[userId] || null;
+    const count = unreadCounts[userId] || 0;//keeps count of unread messages for the selected user, if it exists
+    const previousReadAt = lastReadAt[userId] || null;//when was the last time the user read messages from this chat partner, if it exists
 
     const updatedLastRead = { ...lastReadAt, [userId]: new Date().toISOString() };
     saveLastReadAt(updatedLastRead);
@@ -170,14 +171,14 @@ export const useChatStore = create((set, get) => ({
 
       res.data.forEach((chat) => {
         const partnerId = getPartnerId(chat.user._id);
+        if (partnerId in computedUnread) return;
+
         const lastMsg = chat.lastMessage;
         if (!lastMsg || getSenderId(lastMsg) === String(authUser?._id)) return;
 
         const readAt = lastReadAt[partnerId];
         if (!readAt || new Date(lastMsg.createdAt) > new Date(readAt)) {
-          if (!computedUnread[partnerId]) {
-            computedUnread[partnerId] = 1;
-          }
+          computedUnread[partnerId] = 1;
         }
       });
 
@@ -196,16 +197,24 @@ export const useChatStore = create((set, get) => ({
       const { dividerReadAt, newMessagesCount } = get();
       const { authUser } = useAuthStore.getState();
 
-      let dividerCount = newMessagesCount;
-      if (dividerCount === 0 && dividerReadAt) {
-        dividerCount = res.data.filter(
-          (msg) =>
-            getSenderId(msg) !== String(authUser._id) &&
-            new Date(msg.createdAt) > new Date(dividerReadAt)
-        ).length;
-      }
+      const messages = res.data;
 
-      set({ messages: res.data, newMessagesCount: dividerCount });
+      const dividerCount = dividerReadAt
+      ? messages.filter ((msg) => {
+        const isFromOtherUser =
+        getSenderId(msg) != String(authUser._id);
+
+        const isAfterRead =
+        new Date(msg.createdAt) > new Date(dividerReadAt);
+
+        return isFromOtherUser && isAfterRead;
+      }).length
+      : 0;
+
+      set({
+        messages: messages,
+        newMessagesCount: dividerCount,
+      });
     } catch (error) {
       toast.error(error.response?.data?.message || "Something went wrong");
     } finally {
@@ -308,12 +317,25 @@ export const useChatStore = create((set, get) => ({
   },
 
   deleteSelectedMessages: async () => {
+
+    set({ isDeletingMessages: true });
+
+    try {
+
     const { selectedMessageIds } = get();
+
     for (const id of selectedMessageIds) {
       await get().deleteMessage(id, true);
     }
+
     set({ selectedMessageIds: [], isSelectMode: false });
     toast.success(`${selectedMessageIds.length} message(s) deleted`);
+
+
+    } finally{
+      set({ isDeletingMessages: false });
+    }
+
   },
 
   setReplyingTo: (message) =>
@@ -361,52 +383,68 @@ export const useChatStore = create((set, get) => ({
   },
 
   handleIncomingMessage: (newMessage) => {
-    const { selectedUser, isSoundEnabled, unreadCounts, chats } = get();
+    const { selectedUser, isSoundEnabled } = get();
     const { authUser } = useAuthStore.getState();
     const senderId = getSenderId(newMessage);
 
     if (senderId === String(authUser._id)) return;
 
     const isFromSelectedUser =
-      selectedUser && senderId === getPartnerId(selectedUser._id);
+      selectedUser && senderId === getPartnerId(selectedUser._id);//determine if current selected user is the sender of the incoming message
 
-    if (isFromSelectedUser) {
-      const currentMessages = get().messages;
-      if (!currentMessages.some((m) => m._id === newMessage._id)) {
-        set({ messages: [...currentMessages, newMessage] });
-      }
-    } else {
-      const pid = senderId;
-      set({
+      if (isFromSelectedUser) {
+       const currentMessages = get().messages;
+
+       if (!currentMessages.some((m) => m._id === newMessage._id)) {
+         set({ messages: [...currentMessages, newMessage] });
+       }
+
+       const { lastReadAt } = get();
+
+       const updatedLastRead = {
+         ...lastReadAt,
+         [senderId]: newMessage.createdAt,
+       };
+
+       saveLastReadAt(updatedLastRead);
+
+       set({
+         lastReadAt: updatedLastRead,
+       });
+ } else {
+      set((state) => ({
         unreadCounts: {
-          ...unreadCounts,
-          [pid]: (unreadCounts[pid] || 0) + 1,
+          ...state.unreadCounts,
+          [senderId]: (state.unreadCounts[senderId] || 0) + 1,
         },
-      });
+      }));
     }
 
-    const updatedChats = chats.map((chat) => {
-      if (getPartnerId(chat.user._id) === senderId) {
-        return { ...chat, lastMessage: newMessage };
+    set((state) => {
+      const updatedChats = state.chats.map((chat) => {
+        if (getPartnerId(chat.user._id) === senderId) {
+          return { ...chat, lastMessage: newMessage };
+        }
+        return chat;
+      });
+
+      const chatExists = updatedChats.some(
+        (c) => getPartnerId(c.user._id) === senderId
+      );
+
+      if (!chatExists) {
+        get().getMyChatPartners();
+        return state;
       }
-      return chat;
-    });
 
-    const chatExists = updatedChats.some(
-      (c) => getPartnerId(c.user._id) === senderId
-    );
-
-    if (!chatExists) {
-      get().getMyChatPartners();
-    } else {
-      set({
+      return {
         chats: updatedChats.sort(
           (a, b) =>
             new Date(b.lastMessage?.createdAt || 0) -
             new Date(a.lastMessage?.createdAt || 0)
         ),
-      });
-    }
+      };
+    });
 
     if (isSoundEnabled) {
       const notificationSound = new Audio("/sounds/notification.mp3");
@@ -424,12 +462,32 @@ export const useChatStore = create((set, get) => ({
       get().handleIncomingMessage(newMessage);
     });
 
-    socket.off("messageDeleted");
-    socket.on("messageDeleted", ({ messageId }) => {
-      set({
-        messages: get().messages.filter((msg) => msg._id !== messageId),
-      });
-    });
+  socket.off("messageDeleted");
+  socket.on("messageDeleted", ({ messageId }) => {
+  const filteredMessages = get().messages.filter(
+    (msg) => msg._id !== messageId
+  );
+
+  const { dividerReadAt } = get();
+  const { authUser } = useAuthStore.getState();
+
+  const dividerCount = dividerReadAt
+    ? filteredMessages.filter((msg) => {
+        const isFromOtherUser =
+          getSenderId(msg) !== String(authUser._id);
+
+        const isAfterRead =
+          new Date(msg.createdAt) > new Date(dividerReadAt);
+
+        return isFromOtherUser && isAfterRead;
+      }).length
+    : 0;
+
+  set({
+    messages: filteredMessages,
+    newMessagesCount: dividerCount,
+  });
+ });
 
     socket.off("messageUpdated");
     socket.on("messageUpdated", (updatedMessage) => {
@@ -451,3 +509,4 @@ export const useChatStore = create((set, get) => ({
 }));
 
 export { getMessagePreview };
+

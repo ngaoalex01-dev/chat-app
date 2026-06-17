@@ -11,7 +11,7 @@ function ChatsList() {
     useChatStore();
   const { onlineUsers, typingUsers } = useAuthStore();
 
-  useEffect(() => {
+  useEffect(() => {//react hook that runs when component mounts, dependecy array determines when it runs
     getMyChatPartners();
   }, [getMyChatPartners]);
 
@@ -68,7 +68,7 @@ function ChatsList() {
 
               {unread > 0 && (
                 <div className="shrink-0 min-w-[22px] h-[22px] flex items-center justify-center bg-cyan-500 text-white text-xs font-bold rounded-full px-1.5">
-                  {unread > 99 ? "99+" : unread}
+                  {unread > 10 ? "10+" : unread}
                 </div>
               )}
             </div>

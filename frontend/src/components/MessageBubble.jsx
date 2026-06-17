@@ -169,9 +169,11 @@ function MessageBubble({ message, showNewDivider, newCount, isHighlighted, isPin
           )}
 
           <div
-            className={`chat-bubble relative ${
-              isOwn ? "bg-cyan-600 text-white" : "bg-slate-800 text-slate-200"
-            } ${isSelected ? "ring-2 ring-cyan-400" : ""} ${
+            className={`chat-bubble relative px-4 py-2.5 rounded-2xl shadow-sm ${
+              isOwn
+                ? "bg-cyan-600 text-white rounded-br-md"
+                : "bg-slate-800 text-slate-200 rounded-bl-md"
+            } ${isSelected ? "ring-2 ring-cyan-400/50" : ""} ${
               messageIsPinned ? "ring-1 ring-cyan-300/60" : ""
             }`}
             onClick={() => isSelectMode && toggleMessageSelection(message._id)}

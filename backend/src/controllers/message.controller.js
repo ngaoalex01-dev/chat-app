@@ -86,7 +86,7 @@ export const sendMessage = async (req, res) => {
       await newMessage.populate("replyTo", "text image senderId");
 
        const receiverSocketId = getReceiverSocketId(receiverId);
-       if (receiverSocketId) {
+       if (receiverSocketId) {//if the receive is online send the new message to them in real time using socket.io
          io.to(receiverSocketId).emit("newMessage", newMessage);
        }
       res.status(201).json(newMessage);
@@ -101,7 +101,7 @@ export const getChatPartners = async (req, res) => {
     const loggedInUserId = req.user._id;
 
     const chatPartners = await Message.aggregate([
-      {
+      {// find all the messages where the logged in user is either the sender or the receiver
         $match: {
           $or: [
             { senderId: loggedInUserId },
@@ -109,7 +109,7 @@ export const getChatPartners = async (req, res) => {
           ],
         },
       },
-      {
+      {// get the other chatprtner's id
         $addFields: {
           chatPartner: {
             $cond: {
@@ -120,14 +120,14 @@ export const getChatPartners = async (req, res) => {
           },
         },
       },
-      { $sort: { createdAt: -1 } },
+      { $sort: { createdAt: -1 } },// sort the messages by createdAt in descending order so that the most recent message for each chat partner is at the top
       {
         $group: {
           _id: "$chatPartner",
           lastMessage: { $first: "$$ROOT" },
         },
       },
-      {
+      {// get extra details of the chat partner from the users collection using id and store it in a field called user
         $lookup: {
           from: "users",
           localField: "_id",
@@ -135,7 +135,7 @@ export const getChatPartners = async (req, res) => {
           as: "user",
         },
       },
-      { $unwind: "$user" },
+      { $unwind: "$user" },//take the first item from the user array and turn it into a normal object so that we can access the user's details directly
       {
         $project: {
           _id: 1,
@@ -156,7 +156,7 @@ export const getChatPartners = async (req, res) => {
           },
         },
       },
-      { $sort: { "lastMessage.createdAt": -1 } },
+      { $sort: { "lastMessage.createdAt": -1 } },// newes conversation appear at the top of the list
     ]);
 
     res.status(200).json(chatPartners);
