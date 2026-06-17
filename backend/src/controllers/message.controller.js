@@ -2,6 +2,10 @@ import cloudinary from '../lib/cloudinary.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 import { getReceiverSocketId, io } from "../lib/socket.js";
+import { findConversation, upsertConversation } from "../lib/conversation.js";
+
+const populatePinnedMessage = (messageId) =>
+  Message.findById(messageId).populate("replyTo", "text image senderId audio");
 
 export const getAllContacts = async (req, res) => {
   try {
@@ -28,10 +32,17 @@ export const getMessagesByUserId = async (req, res) => {
         { senderId: userToChatId, receiverId: myId },
       ],
     })
-      .populate("replyTo", "text image senderId")
+      .populate("replyTo", "text image senderId audio")
       .sort({ createdAt: 1 });
 
-    res.status(200).json(messages);
+    const conversation = await findConversation(myId, userToChatId);
+    let pinnedMessage = null;
+
+    if (conversation?.pinnedMessageId) {
+      pinnedMessage = await populatePinnedMessage(conversation.pinnedMessageId);
+    }
+
+    res.status(200).json({ messages, pinnedMessage });
   } catch (error) {
 
     console.log("Error in getmessages controller:", error);
@@ -162,6 +173,62 @@ export const getChatPartners = async (req, res) => {
     res.status(200).json(chatPartners);
   } catch (error) {
     console.log("Error in getChatPartners:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const pinMessage = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { messageId } = req.params;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: "Message not found." });
+    }
+
+    const isParticipant =
+      message.senderId.equals(userId) || message.receiverId.equals(userId);
+
+    if (!isParticipant) {
+      return res.status(403).json({ message: "Not allowed to pin this message." });
+    }
+
+    const partnerId = message.senderId.equals(userId)
+      ? message.receiverId
+      : message.senderId;
+
+    await upsertConversation(userId, partnerId, { pinnedMessageId: messageId });
+
+    const pinnedMessage = await populatePinnedMessage(messageId);
+
+    const partnerSocketId = getReceiverSocketId(partnerId.toString());
+    if (partnerSocketId) {
+      io.to(partnerSocketId).emit("messagePinned", { pinnedMessage });
+    }
+
+    res.status(200).json({ pinnedMessage });
+  } catch (error) {
+    console.log("Error in pinMessage controller:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const unpinMessage = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { partnerId } = req.params;
+
+    await upsertConversation(userId, partnerId, { pinnedMessageId: null });
+
+    const partnerSocketId = getReceiverSocketId(partnerId);
+    if (partnerSocketId) {
+      io.to(partnerSocketId).emit("messageUnpinned", { partnerId: userId.toString() });
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.log("Error in unpinMessage controller:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

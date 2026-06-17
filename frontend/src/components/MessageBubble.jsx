@@ -19,8 +19,7 @@ function MessageBubble({ message, showNewDivider, newCount, isHighlighted, isPin
     toggleMessageSelection,
     setEditingMessage,
     pinMessage,
-    pinnedMessages,
-    selectedUser,
+    pinnedMessage,
     editMessage,
     editingMessage,
     clearEditingMessage,
@@ -30,8 +29,7 @@ function MessageBubble({ message, showNewDivider, newCount, isHighlighted, isPin
     String(message.senderId?._id || message.senderId) === String(authUser._id);
   const isSelected = selectedMessageIds.includes(message._id);
   const isEditing = editingMessage?._id === message._id;
-  const partnerId = selectedUser ? String(selectedUser._id) : "";
-  const messageIsPinned = pinnedMessages[partnerId] === message._id || isPinned;
+  const messageIsPinned = pinnedMessage?._id === message._id || isPinned;
 
   const [contextMenu, setContextMenu] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);

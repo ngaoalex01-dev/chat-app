@@ -4,9 +4,8 @@ import toast from "react-hot-toast";
 import { useAuthStore } from "./useAuthStore";
 
 const LAST_READ_KEY = "chatLastReadAt";
-const PINNED_KEY = "chatPinnedMessages";
 
-const loadLastReadAt = () => {// look into the local storage and get the last read at timestamps for each chat partner, if it fails return an empty object
+const loadLastReadAt = () => {
   try {
     return JSON.parse(localStorage.getItem(LAST_READ_KEY)) || {};
   } catch {
@@ -16,18 +15,6 @@ const loadLastReadAt = () => {// look into the local storage and get the last re
 
 const saveLastReadAt = (lastReadAt) => {// store the updated timestamps fro each chat partner in the local storage
   localStorage.setItem(LAST_READ_KEY, JSON.stringify(lastReadAt));
-};
-
-const loadPinnedMessages = () => {
-  try {
-    return JSON.parse(localStorage.getItem(PINNED_KEY)) || {};
-  } catch {
-    return {};
-  }
-};
-
-const savePinnedMessages = (pinned) => {
-  localStorage.setItem(PINNED_KEY, JSON.stringify(pinned));
 };
 
 const getSenderId = (message) =>
@@ -61,11 +48,41 @@ export const useChatStore = create((set, get) => ({
   isSelectMode: false,
   isForwardModalOpen: false,
   forwardMessageData: null,
-  pinnedMessages: loadPinnedMessages(),
+  pinnedMessage: null,
   isSearchOpen: false,
   searchText: "",
   searchDate: "",
   isDeletingMessages: false,
+  profileView: null,
+
+  openMyProfile: () => set({ profileView: { type: "self" } }),
+  openPartnerProfile: (user) => set({ profileView: { type: "partner", user } }),
+  closeProfileView: () => set({ profileView: null }),
+
+  syncUserProfile: (updatedUser) => {
+    const userId = String(updatedUser._id);
+    const { selectedUser, chats, allContacts, profileView } = get();
+
+    set({
+      chats: chats.map((chat) =>
+        getPartnerId(chat.user._id) === userId
+          ? { ...chat, user: { ...chat.user, ...updatedUser } }
+          : chat
+      ),
+      allContacts: allContacts.map((c) =>
+        getPartnerId(c._id) === userId ? { ...c, ...updatedUser } : c
+      ),
+      selectedUser:
+        selectedUser && getPartnerId(selectedUser._id) === userId
+          ? { ...selectedUser, ...updatedUser }
+          : selectedUser,
+      profileView:
+        profileView?.type === "partner" &&
+        getPartnerId(profileView.user?._id) === userId
+          ? { ...profileView, user: { ...profileView.user, ...updatedUser } }
+          : profileView,
+    });
+  },
 
   toggleSound: () => {
     localStorage.setItem("isSoundEnabled", !get().isSoundEnabled);
@@ -115,6 +132,7 @@ export const useChatStore = create((set, get) => ({
         dividerReadAt: null,
         replyingTo: null,
         editingMessage: null,
+        pinnedMessage: null,
         isSearchOpen: false,
         searchText: "",
         searchDate: "",
@@ -141,6 +159,7 @@ export const useChatStore = create((set, get) => ({
       unreadCounts: updatedUnread,
       replyingTo: null,
       editingMessage: null,
+      pinnedMessage: null,
       selectedMessageIds: [],
       isSelectMode: false,
       isSearchOpen: false,
@@ -194,25 +213,23 @@ export const useChatStore = create((set, get) => ({
     set({ isMessagesLoading: true });
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
-      const { dividerReadAt, newMessagesCount } = get();
+      const { dividerReadAt } = get();
       const { authUser } = useAuthStore.getState();
 
-      const messages = res.data;
+      const messages = res.data.messages ?? res.data;
+      const pinnedMessage = res.data.pinnedMessage ?? null;
 
       const dividerCount = dividerReadAt
-      ? messages.filter ((msg) => {
-        const isFromOtherUser =
-        getSenderId(msg) != String(authUser._id);
-
-        const isAfterRead =
-        new Date(msg.createdAt) > new Date(dividerReadAt);
-
-        return isFromOtherUser && isAfterRead;
-      }).length
-      : 0;
+        ? messages.filter((msg) => {
+            const isFromOtherUser = getSenderId(msg) !== String(authUser._id);
+            const isAfterRead = new Date(msg.createdAt) > new Date(dividerReadAt);
+            return isFromOtherUser && isAfterRead;
+          }).length
+        : 0;
 
       set({
-        messages: messages,
+        messages,
+        pinnedMessage,
         newMessagesCount: dividerCount,
       });
     } catch (error) {
@@ -226,14 +243,15 @@ export const useChatStore = create((set, get) => ({
     const { selectedUser, messages, replyingTo } = get();
     const { authUser } = useAuthStore.getState();
 
-    const tempId = `temp-${Date.now()}`;
+    const clientId = `client-${Date.now()}`;
     const payload = {
       ...messageData,
       replyTo: replyingTo?._id || null,
     };
 
     const optimisticMessage = {
-      _id: tempId,
+      _id: `temp-${Date.now()}`,
+      clientId,
       senderId: authUser._id,
       receiverId: selectedUser._id,
       text: messageData.text,
@@ -249,11 +267,14 @@ export const useChatStore = create((set, get) => ({
 
     try {
       const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, payload);
-      const current = get().messages.filter((msg) => msg._id !== tempId);
-      set({ messages: [...current, res.data] });
+      set({
+        messages: get().messages.map((msg) =>
+          msg.clientId === clientId ? { ...res.data, clientId } : msg
+        ),
+      });
       get().updateChatListWithMessage(selectedUser._id, res.data);
     } catch (error) {
-      set({ messages: get().messages.filter((msg) => msg._id !== tempId) });
+      set({ messages: get().messages.filter((msg) => msg.clientId !== clientId) });
       toast.error(error.response?.data?.message || "Something went wrong");
     }
   },
@@ -276,39 +297,46 @@ export const useChatStore = create((set, get) => ({
   setEditingMessage: (message) => set({ editingMessage: message, replyingTo: null }),
   clearEditingMessage: () => set({ editingMessage: null }),
 
-  pinMessage: (message) => {
-    const { selectedUser, pinnedMessages } = get();
+  pinMessage: async (message) => {
+    const { selectedUser, pinnedMessage } = get();
     if (!selectedUser) return;
 
-    const partnerId = getPartnerId(selectedUser._id);
-    const updated = { ...pinnedMessages };
-    const currentPin = updated[partnerId];
-
-    if (currentPin === message._id) {
-      delete updated[partnerId];
-      toast.success("Message unpinned");
-    } else {
-      updated[partnerId] = message._id;
-      toast.success("Message pinned");
+    if (pinnedMessage?._id === message._id) {
+      return get().unpinMessage();
     }
 
-    savePinnedMessages(updated);
-    set({ pinnedMessages: updated });
+    try {
+      const res = await axiosInstance.put(`/messages/pin/${message._id}`);
+      set({ pinnedMessage: res.data.pinnedMessage });
+      toast.success("Message pinned");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to pin message");
+    }
   },
 
-  getPinnedMessage: () => {
-    const { selectedUser, pinnedMessages, messages } = get();
-    if (!selectedUser) return null;
-    const pinId = pinnedMessages[getPartnerId(selectedUser._id)];
-    return messages.find((m) => m._id === pinId) || null;
+  unpinMessage: async () => {
+    const { selectedUser } = get();
+    if (!selectedUser) return;
+
+    try {
+      await axiosInstance.delete(`/messages/pin/${selectedUser._id}`);
+      set({ pinnedMessage: null });
+      toast.success("Message unpinned");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to unpin message");
+    }
   },
+
+  getPinnedMessage: () => get().pinnedMessage,
 
   deleteMessage: async (messageId, silent = false) => {
     try {
       await axiosInstance.delete(`/messages/${messageId}`);
+      const { pinnedMessage } = get();
       set({
         messages: get().messages.filter((msg) => msg._id !== messageId),
         selectedMessageIds: get().selectedMessageIds.filter((id) => id !== messageId),
+        pinnedMessage: pinnedMessage?._id === messageId ? null : pinnedMessage,
       });
       if (!silent) toast.success("Message deleted");
     } catch (error) {
@@ -486,16 +514,54 @@ export const useChatStore = create((set, get) => ({
   set({
     messages: filteredMessages,
     newMessagesCount: dividerCount,
+    pinnedMessage:
+      get().pinnedMessage?._id === messageId ? null : get().pinnedMessage,
   });
  });
 
     socket.off("messageUpdated");
     socket.on("messageUpdated", (updatedMessage) => {
+      const { pinnedMessage } = get();
       set({
         messages: get().messages.map((msg) =>
           msg._id === updatedMessage._id ? updatedMessage : msg
         ),
+        pinnedMessage:
+          pinnedMessage?._id === updatedMessage._id ? updatedMessage : pinnedMessage,
       });
+    });
+
+    socket.off("messagePinned");
+    socket.on("messagePinned", ({ pinnedMessage }) => {
+      const { selectedUser } = get();
+      if (!selectedUser || !pinnedMessage) return;
+
+      const partnerId = getPartnerId(selectedUser._id);
+      const sender = getSenderId(pinnedMessage);
+      const receiver = String(
+        pinnedMessage.receiverId?._id || pinnedMessage.receiverId
+      );
+
+      if (partnerId === sender || partnerId === receiver) {
+        set({ pinnedMessage });
+      }
+    });
+
+    socket.off("messageUnpinned");
+    socket.on("messageUnpinned", ({ partnerId }) => {
+      const { selectedUser } = get();
+      if (selectedUser && getPartnerId(selectedUser._id) === partnerId) {
+        set({ pinnedMessage: null });
+      }
+    });
+
+    socket.off("userProfileUpdated");
+    socket.on("userProfileUpdated", (updatedUser) => {
+      const { authUser } = useAuthStore.getState();
+      if (authUser && String(authUser._id) === String(updatedUser._id)) {
+        useAuthStore.setState({ authUser: { ...authUser, ...updatedUser } });
+      }
+      get().syncUserProfile(updatedUser);
     });
   },
 
@@ -505,6 +571,9 @@ export const useChatStore = create((set, get) => ({
     socket.off("newMessage");
     socket.off("messageDeleted");
     socket.off("messageUpdated");
+    socket.off("messagePinned");
+    socket.off("messageUnpinned");
+    socket.off("userProfileUpdated");
   },
 }));
 

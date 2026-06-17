@@ -14,50 +14,71 @@ const io = new Server(server, {
   },
 });
 
-// apply authentication middleware to all socket connections
 io.use(socketAuthMiddleware);
 
-// we will use this function to check if the user is online or not
-export function getReceiverSocketId(userId) {
-  return userSocketMap[userId];
-}
+const userConnections = {};
 
-// this is for storig online users
-const userSocketMap = {}; // {userId:socketId}
+const userSocketMap = {};
+
+const getOnlineUserIds = () =>
+  Object.keys(userConnections).filter((id) => userConnections[id] > 0);
+
+const broadcastOnlineUsers = () => {
+  const onlineIds = getOnlineUserIds();
+  io.emit("getOnlineUsers", onlineIds);
+};
+
+export function getReceiverSocketId(userId) {
+  const id = userId?.toString();
+  const sockets = userSocketMap[id];
+  if (!sockets || sockets.size === 0) return null;
+  return [...sockets][0];
+}
 
 io.on("connection", (socket) => {
   console.log("A user connected", socket.user.fullName);
 
   const userId = socket.userId;
-  userSocketMap[userId] = socket.id;
 
-  // io.emit() is used to send events to all connected clients
-  io.emit("getOnlineUsers", Object.keys(userSocketMap));
+  userConnections[userId] = (userConnections[userId] || 0) + 1;
 
-  // with socket.on we listen for events from clients
+  if (!userSocketMap[userId]) {
+    userSocketMap[userId] = new Set();
+  }
+  userSocketMap[userId].add(socket.id);
+
+  socket.emit("getOnlineUsers", getOnlineUserIds());
+  socket.broadcast.emit("getOnlineUsers", getOnlineUserIds());
+
   socket.on("disconnect", () => {
     console.log("A user disconnected", socket.user.fullName);
-    delete userSocketMap[userId];
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
+
+    userConnections[userId] = Math.max(0, (userConnections[userId] || 1) - 1);
+    if (userConnections[userId] === 0) {
+      delete userConnections[userId];
+    }
+
+    if (userSocketMap[userId]) {
+      userSocketMap[userId].delete(socket.id);
+      if (userSocketMap[userId].size === 0) {
+        delete userSocketMap[userId];
+      }
+    }
+
+    broadcastOnlineUsers();
   });
 
   socket.on("typing", ({ receiverId }) => {
     const receiverSocketId = getReceiverSocketId(receiverId);
-
-    if(receiverSocketId) {
-      io.to(receiverSocketId).emit("userTyping", {
-        userId: socket.userId
-      });
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("userTyping", { userId: socket.userId });
     }
   });
 
   socket.on("stopTyping", ({ receiverId }) => {
     const receiverSocketId = getReceiverSocketId(receiverId);
-
-    if(receiverSocketId) {
-      io.to(receiverSocketId).emit("userStoppedTyping", {
-        userId: socket.userId
-      });
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("userStoppedTyping", { userId: socket.userId });
     }
   });
 });

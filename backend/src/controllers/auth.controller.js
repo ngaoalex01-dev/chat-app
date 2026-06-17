@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from "../lib/utils.js";
 import { sendVerificationEmail, sendWelcomeEmail } from "../emails/email.js";
 import cloudinary from 'cloudinary';
+import { io } from "../lib/socket.js";
 
 export const signup = async  (req, res) => {
   const { fullName, email, password} = req.body;
@@ -140,22 +141,39 @@ export const logout = (_, res) => {
 
 export const updateProfile = async (req, res) => {
   try {
-    const { profilePic } = req.body;// destructuring profilePic from req.body
-
-    if(!profilePic) return res.status(400).json({ message: "Profile picture is required" });
-
+    const { profilePic, fullName } = req.body;
     const userId = req.user._id;
+    const updates = {};
 
-    const uploadResponse = await cloudinary.uploader.upload(profilePic);
+    if (fullName?.trim()) {
+      if (fullName.trim().length < 2) {
+        return res.status(400).json({ message: "Name must be at least 2 characters." });
+      }
+      updates.fullName = fullName.trim();
+    }
 
-   const updatedUser =  await User.findByIdAndUpdate(userId, { profilePic: uploadResponse.secure_url }, { new: true }).select("-password");
+    if (profilePic) {
+      const uploadResponse = await cloudinary.uploader.upload(profilePic);
+      updates.profilePic = uploadResponse.secure_url;
+    }
 
-   res.status(200).json({updatedUser});
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "Nothing to update." });
+    }
 
-    }catch (error) {
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, {
+      returnDocument: "after",
+    }).select("-password");
 
+    io.emit("userProfileUpdated", {
+      _id: updatedUser._id,
+      fullName: updatedUser.fullName,
+      profilePic: updatedUser.profilePic,
+    });
+
+    res.status(200).json(updatedUser);
+  } catch (error) {
     console.log("Error in update profile:", error);
     res.status(500).json({ message: "Internal server error" });
-
   }
 };
