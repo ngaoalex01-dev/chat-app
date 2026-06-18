@@ -181,24 +181,40 @@ function MessageBubble({ message, showNewDivider, newCount, isHighlighted, isPin
               <Pin className="absolute -top-2 -right-2 w-4 h-4 text-cyan-400 fill-cyan-400" />
             )}
 
-            {replyPreview && (
-              <div
-                className={`mb-2 pl-3 border-l-2 ${
-                  isOwn ? "border-cyan-300/60" : "border-cyan-500"
-                } text-xs opacity-80`}
-              >
-                <p className="font-medium">
-                  {String(replyPreview.senderId?._id || replyPreview.senderId) ===
-                  String(authUser._id)
-                    ? "You"
-                    : "Reply"}
-                </p>
-                <p className="truncate max-w-[200px]">
-                  {replyPreview.text ||
-                    (replyPreview.audio ? "🎤 Voice note" : "📷 Image")}
-                </p>
-              </div>
-            )}
+{replyPreview && (
+  <div
+    className={`mb-2 pl-3 pr-2 py-2 rounded-lg relative overflow-hidden
+      bg-white/5 backdrop-blur-md
+      border border-purple-400/20
+      shadow-[0_0_15px_rgba(168,85,247,0.15)]
+    `}
+  >
+
+    {/* LEFT GLOW BAR */}
+    <div className={`absolute left-0 top-0 h-full w-1
+      ${isOwn ? "bg-gradient-to-b from-purple-400 via-fuchsia-500 to-purple-600"
+              : "bg-gradient-to-b from-purple-500 via-purple-400 to-fuchsia-500"}
+      shadow-[0_0_12px_rgba(168,85,247,0.4)]`}
+    />
+
+    {/* soft glow overlay */}
+    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 via-fuchsia-500/10 to-transparent pointer-events-none" />
+
+    <div className="relative text-xs opacity-90 text-slate-200 pl-2">
+      <p className="font-medium text-purple-300">
+        {String(replyPreview.senderId?._id || replyPreview.senderId) ===
+        String(authUser._id)
+          ? "You"
+          : "Reply"}
+      </p>
+
+      <p className="truncate max-w-[200px]">
+        {replyPreview.text ||
+          (replyPreview.audio ? "🎤 Voice note" : "📷 Image")}
+      </p>
+    </div>
+  </div>
+)}
 
             {message.image && (
               <img

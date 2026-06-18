@@ -147,7 +147,7 @@ function ChatContainer({ isMobile }) {
     if (isUserNearBottom) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages, authUser._id, isUserNearBottom]);
+  }, [messages]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -209,17 +209,21 @@ function ChatContainer({ isMobile }) {
 
       <div
         ref={chatContainerRef}
-        className="relative z-10 flex-1 px-6 overflow-y-auto py-8"
+        className="relative z-10 flex-1 px-6 overflow-y-auto py-2"
       >
         {messages.length > 0 && !isMessagesLoading ? (
           <div className="max-w-3xl mx-auto space-y-6">
             {groupedMessages.map((group, groupIndex) => (
               <div key={groupIndex} className="space-y-4">
-                <div className="flex justify-center sticky top-2 z-20">
-                  <div className="bg-slate-800/70 backdrop-blur-md px-3 py-1 rounded-full text-xs text-slate-300 border border-slate-700/40 shadow">
-                    {group.label}
-                  </div>
-                </div>
+<div className="flex justify-center sticky top-2 z-20">
+  <div className="px-3 py-1 rounded-full text-xs text-white
+    bg-gradient-to-r from-purple-600/40 to-fuchsia-600/40
+    border border-purple-400/30
+    backdrop-blur-md
+    shadow-[0_0_12px_rgba(168,85,247,0.45)]">
+    {group.label}
+  </div>
+</div>
 
                 {group.messages.map((msg) => {
                   const stableKey = msg.clientId || msg._id;

@@ -132,25 +132,48 @@ function MessageInput() {
 
   return (
     <div className="p-2 md:p-4 pb-3 md:pb-4 pt-2 z-30">
-      {replyingTo && (
-        <div className="max-w-3xl mx-auto mb-3 pr-14">
-          <div className="flex items-center justify-between bg-slate-800/80 rounded-lg px-4 py-2 border-l-4 border-cyan-500">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-cyan-400 font-medium">Replying to</p>
-              <p className="text-sm text-slate-300 truncate">
-                {getMessagePreview(replyingTo)}
-              </p>
-            </div>
-            <button
-              onClick={clearReplyingTo}
-              className="text-slate-400 hover:text-slate-200 shrink-0 ml-3 p-1"
-              type="button"
-            >
-              <XIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
+{replyingTo && (
+  <div className="max-w-3xl mx-auto mb-3 pr-14">
+    <div className="
+      flex items-center justify-between
+      rounded-xl px-4 py-3
+      bg-white/5 backdrop-blur-xl
+      border border-purple-400/20
+      shadow-[0_0_20px_rgba(168,85,247,0.15)]
+      relative overflow-hidden
+    ">
+
+      {/* LEFT PURPLE ACCENT BAR */}
+      <div className="absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b from-purple-500 via-fuchsia-500 to-purple-700 shadow-[0_0_12px_rgba(168,85,247,0.4)]" />
+
+      {/* subtle glow overlay */}
+      <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 via-fuchsia-500/10 to-transparent pointer-events-none" />
+
+      <div className="relative min-w-0 flex-1 pl-2">
+        <p className="text-xs text-purple-300 font-medium">
+          Replying to
+        </p>
+
+        <p className="text-sm text-slate-200 truncate">
+          {getMessagePreview(replyingTo)}
+        </p>
+      </div>
+
+      <button
+        onClick={clearReplyingTo}
+        className="
+          relative ml-3 shrink-0 p-1
+          text-slate-300 hover:text-white
+          hover:bg-purple-500/20
+          rounded-full transition-all
+        "
+        type="button"
+      >
+        <XIcon className="w-5 h-5" />
+      </button>
+    </div>
+  </div>
+)}
 
       {imagePreview && (
         <div className="max-w-3xl mx-auto mb-3 flex items-center">
